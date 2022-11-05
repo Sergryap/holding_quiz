@@ -21,7 +21,7 @@ def create_quiz_from_files_to_json(path):
             info = pattern.search(block)
             if info:
                 if info.group(2).isdigit():
-                    question = info.group(3).replace('\n', ' ')
+                    question = info.group(3)
                     next_answer = True
                 elif next_answer:
                     next_answer = False
@@ -46,3 +46,7 @@ def get_random_question():
         questions = json.load(file)
     number_question = str(random.randint(1, questions['count']))
     return questions['questions'][number_question]['question']
+
+
+if __name__ == '__main__':
+    create_quiz_from_files_to_json('quiz-questions')

@@ -1,11 +1,24 @@
 import logging
 import telegram
+import redis
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from environs import Env
 from get_question_answer import get_random_question
 from logger import BotLogsHandler
+
+
+class UpdaterRedisInit(Updater):
+    def __init__(self, token, host, port, password):
+        super().__init__(token)
+        self.redis_init = redis.Redis(
+            host=host,
+            port=port,
+            password=password,
+            decode_responses=True
+        )
+        self.dispatcher.user_data.update({'redis_init': self.redis_init})
 
 
 def start(update: Update, context: CallbackContext) -> None:
@@ -18,8 +31,12 @@ def start(update: Update, context: CallbackContext) -> None:
 
 
 def msg_user(update: Update, context: CallbackContext) -> None:
+    redis_connect = context.dispatcher.user_data['redis_init']
+    user_id = update.effective_user.id
     if update.message.text == 'Новый вопрос':
-        msg = get_random_question()
+        question = get_random_question()
+        redis_connect.set(user_id, question)
+        msg = redis_connect.get(user_id)
     else:
         msg = update.message.text
     update.message.reply_text(
@@ -41,7 +58,12 @@ def main() -> None:
     env = Env()
     env.read_env()
 
-    updater = Updater(env('TOKEN_TG'))
+    updater = UpdaterRedisInit(
+        token=env('TOKEN_TG'),
+        host=env('REDIS_HOST'),
+        port=env('REDIS_PORT'),
+        password=env('PASSWORD_DB'),
+    )
     updater.logger.addHandler(BotLogsHandler(
         token=env('TOKEN_TG_LOG'),
         chat_id=env('CHAT_ID_LOG')
