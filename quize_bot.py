@@ -1,9 +1,10 @@
 import logging
-
 import telegram
+
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from environs import Env
+from get_question_answer import get_random_question
 from logger import BotLogsHandler
 
 
@@ -13,19 +14,22 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         fr'Привет, {user.full_name}! Я бот для викторин',
         reply_markup=get_markup()
-
     )
 
 
-def echo(update: Update, context: CallbackContext) -> None:
+def msg_user(update: Update, context: CallbackContext) -> None:
+    if update.message.text == 'Новый вопрос':
+        msg = get_random_question()
+    else:
+        msg = update.message.text
     update.message.reply_text(
-        update.message.text,
+        text=msg,
         reply_markup=get_markup()
     )
 
 
 def get_markup() -> telegram.ReplyKeyboardMarkup:
-    custom_keyboard = [['Новый вопрос', 'Сдатья'], ['Мой счет']]
+    custom_keyboard = [['Новый вопрос', 'Сдаться'], ['Мой счет']]
     return telegram.ReplyKeyboardMarkup(
         keyboard=custom_keyboard,
         resize_keyboard=True
@@ -45,7 +49,7 @@ def main() -> None:
     dispatcher = updater.dispatcher
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
     dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, msg_user))
 
     updater.start_polling()
     updater.idle()
