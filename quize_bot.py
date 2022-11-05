@@ -5,10 +5,13 @@ import redis
 import difflib
 
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
 from environs import Env
 from get_question_answer import get_random_question
 from logger import BotLogsHandler
+
+
+QUESTION, ATTEMPT = range(2)
 
 
 class UpdaterRedisInit(Updater):
@@ -26,7 +29,7 @@ def compare_strings(seq1, seq2):
     return difflib.SequenceMatcher(a=seq1.lower(), b=seq2.lower()).ratio() > 0.85
 
 
-def start(update: Update, context: CallbackContext) -> None:
+def start(update: Update, context: CallbackContext):
     """Отправляет сообщение при выполнении команды /start."""
     user = update.effective_user
     update.message.reply_text(
@@ -35,37 +38,39 @@ def start(update: Update, context: CallbackContext) -> None:
     )
 
 
-def msg_user(update: Update, context: CallbackContext) -> None:
+def handle_new_question_request(update: Update, context: CallbackContext):
     redis_connect = context.dispatcher.user_data['redis_init']
     user_id = update.effective_user.id
-    message_user = update.message.text
+    question, answer_correct = get_random_question()
+    redis_connect.set(
+        user_id,
+        json.dumps({'answer': answer_correct})
+    )
+    update.message.reply_text(
+        text=question,
+        reply_markup=get_markup()
+    )
+    return ATTEMPT
+
+
+def handle_solution_attempt(update: Update, context: CallbackContext):
+    redis_connect = context.dispatcher.user_data['redis_init']
+    user_id = update.effective_user.id
     redis_user = redis_connect.get(user_id)
-    user_data = json.loads(redis_user) if redis_user else {}
-
-    if message_user == 'Новый вопрос':
-        question, answer_correct = get_random_question()
-        redis_connect.set(
-            user_id,
-            json.dumps(
-                {'answer': answer_correct, 'waiting_answer': True}
-            )
-        )
-        msg = question
-    elif user_data.get('waiting_answer'):
-        answer_correct = user_data['answer']
-        similar_answer = compare_strings(answer_correct, message_user)
-        if similar_answer:
-            msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-            redis_connect.delete(user_id)
-        else:
-            msg = 'Неправильно... Попробуешь ещё раз?'
+    answer_correct = json.loads(redis_user)['answer']
+    similar_answer = compare_strings(answer_correct, update.message.text)
+    if similar_answer:
+        msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+        redis_connect.delete(user_id)
+        next_state = ConversationHandler.END
     else:
-        msg = message_user
-
+        msg = 'Неправильно... Попробуешь ещё раз?'
+        next_state = None
     update.message.reply_text(
         text=msg,
         reply_markup=get_markup()
     )
+    return next_state
 
 
 def get_markup() -> telegram.ReplyKeyboardMarkup:
@@ -93,8 +98,17 @@ def main() -> None:
     ))
     dispatcher = updater.dispatcher
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
+    conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.regex('Новый вопрос'), handle_new_question_request)],
+        states={
+            ATTEMPT: [MessageHandler(Filters.text & ~Filters.command, handle_solution_attempt)]
+        },
+        fallbacks=[MessageHandler(Filters.regex('Новый вопрос'), handle_new_question_request)]
+
+    )
+
     dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, msg_user))
+    dispatcher.add_handler(conv_handler)
 
     updater.start_polling()
     updater.idle()
