@@ -1,6 +1,8 @@
+import json
 import logging
 import telegram
 import redis
+import re
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
@@ -16,7 +18,6 @@ class UpdaterRedisInit(Updater):
             host=host,
             port=port,
             password=password,
-            decode_responses=True
         )
         self.dispatcher.user_data.update({'redis_init': self.redis_init})
 
@@ -33,12 +34,32 @@ def start(update: Update, context: CallbackContext) -> None:
 def msg_user(update: Update, context: CallbackContext) -> None:
     redis_connect = context.dispatcher.user_data['redis_init']
     user_id = update.effective_user.id
-    if update.message.text == 'Новый вопрос':
-        question = get_random_question()
-        redis_connect.set(user_id, question)
-        msg = redis_connect.get(user_id)
+    message_user = update.message.text
+    redis_user = redis_connect.get(user_id)
+    user_data = json.loads(redis_user) if redis_user else {}
+
+    if message_user == 'Новый вопрос':
+        question, answer_correct = get_random_question()
+        redis_connect.set(
+            user_id,
+            json.dumps({
+                'answer': answer_correct,
+                'waiting_answer': True
+            })
+        )
+        msg = question
+    elif user_data.get('waiting_answer'):
+        answer_correct = user_data['answer']
+        pattern = re.compile(f'({answer_correct}?)', re.IGNORECASE)
+        result = pattern.search(message_user)
+        if result:
+            msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+            redis_connect.delete(user_id)
+        else:
+            msg = 'Неправильно... Попробуешь ещё раз?'
     else:
-        msg = update.message.text
+        msg = message_user
+
     update.message.reply_text(
         text=msg,
         reply_markup=get_markup()

@@ -45,7 +45,10 @@ def get_random_question():
     with open('quiz-questions.json', 'r') as file:
         questions = json.load(file)
     number_question = str(random.randint(1, questions['count']))
-    return questions['questions'][number_question]['question']
+    return (
+        questions['questions'][number_question]['question'],
+        questions['questions'][number_question]['answer']
+    )
 
 
 if __name__ == '__main__':
