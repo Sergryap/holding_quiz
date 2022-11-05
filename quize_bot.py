@@ -1,5 +1,6 @@
 import logging
 
+import telegram
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from environs import Env
@@ -9,12 +10,26 @@ from logger import BotLogsHandler
 def start(update: Update, context: CallbackContext) -> None:
     """Отправляет сообщение при выполнении команды /start."""
     user = update.effective_user
-    update.message.reply_text(fr'Здравствуйте, {user.full_name}!')
+    update.message.reply_text(
+        fr'Привет, {user.full_name}! Я бот для викторин',
+        reply_markup=get_markup()
+
+    )
 
 
 def echo(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text(
+        update.message.text,
+        reply_markup=get_markup()
+    )
 
-    update.message.reply_text(update.message.text)
+
+def get_markup() -> telegram.ReplyKeyboardMarkup:
+    custom_keyboard = [['Новый вопрос', 'Сдатья'], ['Мой счет']]
+    return telegram.ReplyKeyboardMarkup(
+        keyboard=custom_keyboard,
+        resize_keyboard=True
+    )
 
 
 def main() -> None:
