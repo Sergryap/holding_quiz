@@ -2,7 +2,7 @@ import json
 import logging
 import telegram
 import redis
-import re
+import difflib
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
@@ -22,11 +22,15 @@ class UpdaterRedisInit(Updater):
         self.dispatcher.user_data.update({'redis_init': self.redis_init})
 
 
+def compare_strings(seq1, seq2):
+    return difflib.SequenceMatcher(a=seq1.lower(), b=seq2.lower()).ratio() > 0.85
+
+
 def start(update: Update, context: CallbackContext) -> None:
     """Отправляет сообщение при выполнении команды /start."""
     user = update.effective_user
     update.message.reply_text(
-        fr'Привет, {user.full_name}! Я бот для викторин',
+        fr'Привет, {user.first_name}! Я бот для викторин',
         reply_markup=get_markup()
     )
 
@@ -42,17 +46,15 @@ def msg_user(update: Update, context: CallbackContext) -> None:
         question, answer_correct = get_random_question()
         redis_connect.set(
             user_id,
-            json.dumps({
-                'answer': answer_correct,
-                'waiting_answer': True
-            })
+            json.dumps(
+                {'answer': answer_correct, 'waiting_answer': True}
+            )
         )
         msg = question
     elif user_data.get('waiting_answer'):
         answer_correct = user_data['answer']
-        pattern = re.compile(f'({answer_correct}?)', re.IGNORECASE)
-        result = pattern.search(message_user)
-        if result:
+        similar_answer = compare_strings(answer_correct, message_user)
+        if similar_answer:
             msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
             redis_connect.delete(user_id)
         else:
