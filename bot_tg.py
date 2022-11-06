@@ -55,7 +55,7 @@ def start(update: Update, context: CallbackContext):
     """Отправляет сообщение при выполнении команды /start."""
     user = update.effective_user
     update.message.reply_text(
-        fr'Привет, {user.first_name}! Я бот для викторин',
+        f'Привет, {user.first_name}! Я бот для викторин. Чтобы начать нажми «Новый вопрос»',
         reply_markup=get_markup()
     )
 
