@@ -11,18 +11,38 @@ from get_question_answer import get_random_question
 from logger import BotLogsHandler
 
 
-QUESTION, ATTEMPT = range(2)
+ATTEMPT = 1
 
 
 class UpdaterRedisInit(Updater):
     def __init__(self, token, host, port, password):
         super().__init__(token)
-        self.redis_init = redis.Redis(
+        self.dispatcher.redis = redis.Redis(
             host=host,
             port=port,
             password=password,
         )
-        self.dispatcher.user_data.update({'redis_init': self.redis_init})
+
+
+def get_init_data(update: Update, context: CallbackContext):
+    redis_connect = context.dispatcher.redis
+    user_id = update.effective_user.id
+    redis_user = redis_connect.get(user_id)
+    answer_correct = json.loads(redis_user)['answer']
+    return (
+        redis_connect,
+        user_id,
+        redis_user,
+        answer_correct,
+    )
+
+
+def get_markup() -> telegram.ReplyKeyboardMarkup:
+    custom_keyboard = [['Новый вопрос', 'Сдаться'], ['Мой счет']]
+    return telegram.ReplyKeyboardMarkup(
+        keyboard=custom_keyboard,
+        resize_keyboard=True
+    )
 
 
 def compare_strings(seq1, seq2):
@@ -39,7 +59,7 @@ def start(update: Update, context: CallbackContext):
 
 
 def handle_new_question_request(update: Update, context: CallbackContext):
-    redis_connect = context.dispatcher.user_data['redis_init']
+    redis_connect = context.dispatcher.redis
     user_id = update.effective_user.id
     question, answer_correct = get_random_question()
     redis_connect.set(
@@ -54,10 +74,7 @@ def handle_new_question_request(update: Update, context: CallbackContext):
 
 
 def handle_solution_attempt(update: Update, context: CallbackContext):
-    redis_connect = context.dispatcher.user_data['redis_init']
-    user_id = update.effective_user.id
-    redis_user = redis_connect.get(user_id)
-    answer_correct = json.loads(redis_user)['answer']
+    redis_connect, user_id, redis_user, answer_correct = get_init_data(update, context)
     similar_answer = compare_strings(answer_correct, update.message.text)
     if similar_answer:
         msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
@@ -73,12 +90,22 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
     return next_state
 
 
-def get_markup() -> telegram.ReplyKeyboardMarkup:
-    custom_keyboard = [['Новый вопрос', 'Сдаться'], ['Мой счет']]
-    return telegram.ReplyKeyboardMarkup(
-        keyboard=custom_keyboard,
-        resize_keyboard=True
+def show_correct_answer_and_next_question(update: Update, context: CallbackContext):
+    redis_connect, user_id, redis_user, answer_correct = get_init_data(update, context)
+    update.message.reply_text(
+        text=f'Правильный ответ:\n{answer_correct}',
+        reply_markup=get_markup()
     )
+    next_question, next_answer_correct = get_random_question()
+    redis_connect.set(
+        user_id,
+        json.dumps({'answer': next_answer_correct})
+    )
+    update.message.reply_text(
+        text=f'Следующий вопрос:\n\n{next_question}',
+        reply_markup=get_markup()
+    )
+    return ATTEMPT
 
 
 def main() -> None:
@@ -101,10 +128,17 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.regex('Новый вопрос'), handle_new_question_request)],
         states={
-            ATTEMPT: [MessageHandler(Filters.text & ~Filters.command, handle_solution_attempt)]
+            ATTEMPT: [
+                MessageHandler(
+                    Filters.text & ~Filters.command & ~Filters.regex('Сдаться'),
+                    handle_solution_attempt
+                ),
+                MessageHandler(
+                    Filters.regex('Сдаться'), show_correct_answer_and_next_question
+                )
+            ]
         },
         fallbacks=[MessageHandler(Filters.regex('Новый вопрос'), handle_new_question_request)]
-
     )
 
     dispatcher.add_handler(CommandHandler('start', start))
