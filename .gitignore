@@ -1,5 +1,4 @@
 .idea
 venv
-quiz-questions
+/quiz-questions
 .env
-/quiz-questions.json
