@@ -10,6 +10,8 @@ from environs import Env
 from get_question_answer import get_random_question
 from logger import BotLogsHandler
 
+logger = logging.getLogger('telegram_logging')
+
 
 ATTEMPT = 1
 
