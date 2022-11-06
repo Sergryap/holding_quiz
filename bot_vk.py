@@ -31,6 +31,7 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     message_user = event.text
     redis_user = redis_connect.get(user_id)
     redis_user_data = json.loads(redis_user) if redis_user else {}
+    messages = []
 
     if message_user == 'Новый вопрос':
         question, answer_correct = get_random_question()
@@ -40,15 +41,10 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
                 {'answer': answer_correct, 'waiting_answer': True}
             )
         )
-        msg = question
+        messages.append(question)
     elif redis_user_data.get('waiting_answer') and message_user == 'Сдаться':
         answer_correct = json.loads(redis_user)['answer']
-        vk_api.messages.send(
-            user_id=user_id,
-            message=f'Правильный ответ:\n{answer_correct}',
-            random_id=random.randint(1, 1000),
-            keyboard=get_markup()
-        )
+        messages.append(f'Правильный ответ:\n{answer_correct}')
         next_question, next_answer_correct = get_random_question()
         redis_connect.set(
             user_id,
@@ -56,26 +52,27 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
                 {'answer': next_answer_correct, 'waiting_answer': True}
             )
         )
-        msg = f'Следующий вопрос:\n\n{next_question}'
+        messages.append(f'Следующий вопрос:\n\n{next_question}')
     elif redis_user_data.get('waiting_answer'):
         answer_correct = redis_user_data['answer']
         similar_answer = compare_strings(answer_correct, message_user)
         if similar_answer:
-            msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
+            messages.append('Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»')
             redis_connect.delete(user_id)
         else:
-            msg = 'Неправильно... Попробуешь ещё раз?'
+            messages.append('Неправильно... Попробуешь ещё раз?')
     else:
         user_info = vk_api.users.get(user_ids=user_id)
         first_name = user_info[0]['first_name']
-        msg = f'Привет, {first_name}! Я бот для викторин. Чтобы начать нажми «Новый вопрос»'
+        messages.append(f'Привет, {first_name}! Я бот для викторин. Чтобы начать нажми «Новый вопрос»')
 
-    vk_api.messages.send(
-        user_id=user_id,
-        message=msg,
-        random_id=random.randint(1, 1000),
-        keyboard=get_markup()
-    )
+    for msg in messages:
+        vk_api.messages.send(
+            user_id=user_id,
+            message=msg,
+            random_id=random.randint(1, 1000),
+            keyboard=get_markup()
+        )
 
 
 def main() -> None:
