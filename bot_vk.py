@@ -33,7 +33,7 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     redis_user_data = json.loads(redis_user) if redis_user else {}
     messages = []
 
-    if message_user == 'Новый вопрос':
+    if message_user == 'Новый вопрос' and not redis_user_data.get('waiting_answer'):
         question, answer_correct = get_random_question()
         redis_connect.set(
             user_id,

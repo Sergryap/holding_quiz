@@ -2,3 +2,4 @@
 venv
 /quiz-questions
 .env
+/quiz-questions_original/
