@@ -31,34 +31,63 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     message_user = event.text
     redis_user = redis_connect.get(user_id)
     redis_user_data = json.loads(redis_user) if redis_user else {}
+    current_number_question = redis_user_data.get('number_question', 0)
+    all_numbers_question = redis_user_data.get('all_numbers', [current_number_question])
+    number_question = current_number_question
     messages = []
 
     if message_user == 'Новый вопрос' and not redis_user_data.get('waiting_answer'):
-        question, answer_correct, number_question = get_random_question()
+        while number_question in all_numbers_question or number_question == current_number_question:
+            question, answer_correct, number_question = get_random_question()
+        all_numbers_question.append(number_question)
         redis_connect.set(
             user_id,
             json.dumps(
-                {'answer': answer_correct, 'waiting_answer': True}
+                {
+                    'answer': answer_correct,
+                    'waiting_answer': True,
+                    'number_question': number_question,
+                    'all_numbers': all_numbers_question,
+                }
             )
         )
         messages.append(question)
+
     elif redis_user_data.get('waiting_answer') and message_user == 'Сдаться':
-        answer_correct = json.loads(redis_user)['answer']
+        answer_correct = redis_user_data['answer']
         messages.append(f'Правильный ответ:\n{answer_correct}')
-        next_question, next_answer_correct, number_question = get_random_question()
+        while number_question in all_numbers_question or number_question == current_number_question:
+            next_question, next_answer_correct, number_question = get_random_question()
+        all_numbers_question.append(number_question)
         redis_connect.set(
             user_id,
             json.dumps(
-                {'answer': next_answer_correct, 'waiting_answer': True}
+                {
+                    'answer': next_answer_correct,
+                    'waiting_answer': True,
+                    'number_question': number_question,
+                    'all_numbers': all_numbers_question,
+                }
             )
         )
         messages.append(f'Следующий вопрос:\n\n{next_question}')
+
     elif redis_user_data.get('waiting_answer'):
         answer_correct = redis_user_data['answer']
         similar_answer = compare_strings(answer_correct, message_user)
         if similar_answer:
             messages.append('Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»')
-            redis_connect.delete(user_id)
+            redis_connect.set(
+                user_id,
+                json.dumps(
+                    {
+                        'answer': None,
+                        'waiting_answer': False,
+                        'number_question': number_question,
+                        'all_numbers': all_numbers_question,
+                    }
+                )
+            )
         else:
             messages.append('Неправильно... Попробуешь ещё раз?')
     else:
