@@ -26,16 +26,25 @@ class UpdaterRedisInit(Updater):
         )
 
 
-def get_init_data(update: Update, context: CallbackContext):
+def get_user_data(update: Update, context: CallbackContext):
     redis_connect = context.dispatcher.redis
     user_id = update.effective_user.id
     redis_user = redis_connect.get(user_id)
-    answer_correct = json.loads(redis_user)['answer']
+    if redis_user:
+        answer_correct = json.loads(redis_user).get('answer')
+        number_question = json.loads(redis_user).get('number_question', 0)
+        all_numbers = json.loads(redis_user).get('all_numbers', [number_question])
+    else:
+        answer_correct = None
+        number_question = 0
+        all_numbers = [0]
+
     return (
         redis_connect,
         user_id,
-        redis_user,
         answer_correct,
+        number_question,
+        all_numbers
     )
 
 
@@ -61,12 +70,24 @@ def start(update: Update, context: CallbackContext):
 
 
 def handle_new_question_request(update: Update, context: CallbackContext):
-    redis_connect = context.dispatcher.redis
-    user_id = update.effective_user.id
-    question, answer_correct = get_random_question()
+    (
+        redis_connect,
+        user_id,
+        answer,
+        current_question,
+        all_numbers,
+    ) = get_user_data(update, context)
+    number_question = current_question
+    while number_question in all_numbers or number_question == current_question:
+        question, answer_correct, number_question = get_random_question()
+    all_numbers.append(number_question)
     redis_connect.set(
         user_id,
-        json.dumps({'answer': answer_correct})
+        json.dumps({
+            'answer': answer_correct,
+            'number_question': number_question,
+            'all_numbers': all_numbers,
+        })
     )
     update.message.reply_text(
         text=question,
@@ -76,11 +97,24 @@ def handle_new_question_request(update: Update, context: CallbackContext):
 
 
 def handle_solution_attempt(update: Update, context: CallbackContext):
-    redis_connect, user_id, redis_user, answer_correct = get_init_data(update, context)
+    (
+        redis_connect,
+        user_id,
+        answer_correct,
+        number_question,
+        all_numbers,
+    ) = get_user_data(update, context)
     similar_answer = compare_strings(answer_correct, update.message.text)
     if similar_answer:
         msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
-        redis_connect.delete(user_id)
+        redis_connect.set(
+            user_id,
+            json.dumps({
+                'answer': None,
+                'number_question': number_question,
+                'all_numbers': all_numbers,
+            })
+        )
         next_state = ConversationHandler.END
     else:
         msg = 'Неправильно... Попробуешь ещё раз?'
@@ -93,15 +127,28 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
 
 
 def show_correct_answer_and_next_question(update: Update, context: CallbackContext):
-    redis_connect, user_id, redis_user, answer_correct = get_init_data(update, context)
+    (
+        redis_connect,
+        user_id,
+        answer_correct,
+        number_question_exist,
+        all_numbers
+    ) = get_user_data(update, context)
     update.message.reply_text(
         text=f'Правильный ответ:\n{answer_correct}',
         reply_markup=get_markup()
     )
-    next_question, next_answer_correct = get_random_question()
+    number_question = number_question_exist
+    while number_question in all_numbers or number_question == number_question_exist:
+        next_question, next_answer_correct, number_question = get_random_question()
+    all_numbers.append(number_question)
     redis_connect.set(
         user_id,
-        json.dumps({'answer': next_answer_correct})
+        json.dumps({
+            'answer': next_answer_correct,
+            'number_question': number_question,
+            'all_numbers': all_numbers,
+        })
     )
     update.message.reply_text(
         text=f'Следующий вопрос:\n\n{next_question}',

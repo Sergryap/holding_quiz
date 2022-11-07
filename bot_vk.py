@@ -34,7 +34,7 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     messages = []
 
     if message_user == 'Новый вопрос' and not redis_user_data.get('waiting_answer'):
-        question, answer_correct = get_random_question()
+        question, answer_correct, number_question = get_random_question()
         redis_connect.set(
             user_id,
             json.dumps(
@@ -45,7 +45,7 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     elif redis_user_data.get('waiting_answer') and message_user == 'Сдаться':
         answer_correct = json.loads(redis_user)['answer']
         messages.append(f'Правильный ответ:\n{answer_correct}')
-        next_question, next_answer_correct = get_random_question()
+        next_question, next_answer_correct, number_question = get_random_question()
         redis_connect.set(
             user_id,
             json.dumps(

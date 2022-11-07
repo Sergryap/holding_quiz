@@ -2,5 +2,6 @@
 venv
 /quiz-questions
 .env
-/quiz-questions_original/
+/quiz-questions-original/
 quiz-questions
+/quiz-questions-json.zip
