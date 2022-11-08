@@ -7,8 +7,9 @@ import redis
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.vk_api import VkApiMethod
-from bot_tg import compare_strings
 from environs import Env
+
+from general_func import compare_strings, get_redis_user_data
 from get_question_answer import get_random_question
 from logger import BotLogsHandler
 from time import sleep
@@ -29,14 +30,14 @@ def get_markup():
 def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Redis) -> None:
     user_id = event.user_id
     message_user = event.text
-    redis_user = redis_connect.get(user_id)
-    redis_user_data = json.loads(redis_user) if redis_user else {}
-    current_number_question = redis_user_data.get('number_question', 0)
-    all_numbers_question = redis_user_data.get('all_numbers', [current_number_question])
+    (answer_correct_redis,
+     current_number_question,
+     all_numbers_question,
+     waiting_answer) = get_redis_user_data(user_id, redis_connect)
     number_question = current_number_question
     messages = []
 
-    if message_user == 'Новый вопрос' and not redis_user_data.get('waiting_answer'):
+    if message_user == 'Новый вопрос' and not waiting_answer:
         while number_question in all_numbers_question or number_question == current_number_question:
             question, answer_correct, number_question = get_random_question()
         all_numbers_question.append(number_question)
@@ -53,9 +54,8 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
         )
         messages.append(question)
 
-    elif redis_user_data.get('waiting_answer') and message_user == 'Сдаться':
-        answer_correct = redis_user_data['answer']
-        messages.append(f'Правильный ответ:\n{answer_correct}')
+    elif waiting_answer and message_user == 'Сдаться':
+        messages.append(f'Правильный ответ:\n{answer_correct_redis}')
         while number_question in all_numbers_question or number_question == current_number_question:
             next_question, next_answer_correct, number_question = get_random_question()
         all_numbers_question.append(number_question)
@@ -72,9 +72,8 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
         )
         messages.append(f'Следующий вопрос:\n\n{next_question}')
 
-    elif redis_user_data.get('waiting_answer'):
-        answer_correct = redis_user_data['answer']
-        similar_answer = compare_strings(answer_correct, message_user)
+    elif waiting_answer:
+        similar_answer = compare_strings(answer_correct_redis, message_user)
         if similar_answer:
             messages.append('Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»')
             redis_connect.set(

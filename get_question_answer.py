@@ -10,7 +10,7 @@ def create_dir(new_dir):
     return os.path.join(os.getcwd(), new_dir)
 
 
-def create_quiz_from_files_to_json(path, new_path, count_questions_file):
+def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
     path_save = create_dir(new_path)
     files_quiz = os.listdir(path)
     next_answer = False
@@ -19,7 +19,6 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_file):
     quiz = []
 
     for file_quiz in files_quiz:
-        print(file_quiz)
         with open(os.path.join(os.getcwd(), path, file_quiz), 'r', encoding='koi8-r') as file_content:
             file_text = file_content.read()
 
@@ -39,8 +38,8 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_file):
                         'number': number_question,
                     })
 
-                    if number_question % count_questions_file == 0:
-                        number_file = number_question / count_questions_file
+                    if number_question % count_questions_in_file == 0:
+                        number_file = number_question / count_questions_in_file
                         with open(
                                 os.path.join(path_save, f'{number_file}_quiz-questions.json'), 'w'
                         ) as file:
@@ -48,8 +47,7 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_file):
                         quiz = []
 
 
-def get_random_question():
-    path_name = 'quiz-questions-json'
+def get_random_question(path_name='quiz-questions-json'):
     files_quiz = os.listdir(path_name)
     file_random = random.choice(files_quiz)
     file_random_path = os.path.join(os.getcwd(), path_name, file_random)
