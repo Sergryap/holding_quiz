@@ -5,6 +5,10 @@ import random
 
 
 def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
+    """
+    Создание файлов json из текстовых фалов в директории path и запись их в дирректрию new_path
+    count_questions_in_file - количество вопросов в одном файле json
+    """
     path_save = os.path.join(os.getcwd(), new_path)
     os.makedirs(path_save)
     files_quiz = os.listdir(path)
@@ -32,18 +36,24 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
                         'answer': answer,
                         'number': number_question,
                     })
-
                     if number_question % count_questions_in_file == 0:
-                        number_file = number_question / count_questions_in_file
-                        with open(
-                                os.path.join(path_save, f'{number_file}_quiz-questions.json'), 'w'
-                        ) as file:
-                            json.dump(quiz, file, ensure_ascii=False, indent=5)
+                        number_file = int(number_question / count_questions_in_file)
+                        save_data_to_json(quiz, path_save, number_file, 'quiz-questions.json')
                         quiz = []
+    # дописываем остаток вопросов:
+    if quiz:
+        number_file += 1
+        save_data_to_json(quiz, path_save, number_file, 'quiz-questions.json')
+
+
+def save_data_to_json(data, path_save, number_file, name_file):
+    with open(
+            os.path.join(path_save, f'{number_file}_{name_file}'), 'w'
+    ) as file:
+        json.dump(data, file, ensure_ascii=False, indent=5)
 
 
 def get_random_question(path_name='quiz-questions-json'):
-    path_save = os.path.join(os.getcwd(), path_name)
     files_quiz = os.listdir(path_name)
     file_random = random.choice(files_quiz)
     file_random_path = os.path.join(os.getcwd(), path_name, file_random)
