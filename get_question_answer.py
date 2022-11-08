@@ -4,14 +4,9 @@ import re
 import random
 
 
-def create_dir(new_dir):
-    if not os.path.exists(os.path.join(os.getcwd(), new_dir)):
-        os.makedirs(os.path.join(os.getcwd(), new_dir))
-    return os.path.join(os.getcwd(), new_dir)
-
-
 def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
-    path_save = create_dir(new_path)
+    path_save = os.path.join(os.getcwd(), new_path)
+    os.makedirs(path_save)
     files_quiz = os.listdir(path)
     next_answer = False
     pattern = re.compile(r'^(Вопрос|Ответ)\s*(\d*):?\n+([\s\S]+)')
@@ -48,6 +43,7 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
 
 
 def get_random_question(path_name='quiz-questions-json'):
+    path_save = os.path.join(os.getcwd(), path_name)
     files_quiz = os.listdir(path_name)
     file_random = random.choice(files_quiz)
     file_random_path = os.path.join(os.getcwd(), path_name, file_random)
