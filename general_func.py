@@ -7,7 +7,7 @@ def get_redis_user_data(user_id, redis_connect):
     Получение данных о пользователе из Redis
     answer_correct - ответ на текущий волпрос
     number_question - номер текущего вопроса
-    waiting_answer - значение True укзывает на состояние ожидания ответа пользователя
+    waiting_answer - значение True указывает на состояние ожидания ответа пользователя (для Vk)
     """
     redis_user = json.loads(redis_connect.get(user_id))
 

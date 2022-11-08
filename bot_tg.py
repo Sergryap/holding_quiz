@@ -17,16 +17,6 @@ logger = logging.getLogger('telegram_logging')
 ATTEMPT = 1
 
 
-class UpdaterRedisInit(Updater):
-    def __init__(self, token, host, port, password):
-        super().__init__(token)
-        self.dispatcher.redis = redis.Redis(
-            host=host,
-            port=port,
-            password=password,
-        )
-
-
 def get_markup() -> telegram.ReplyKeyboardMarkup:
     custom_keyboard = [['Новый вопрос', 'Сдаться'], ['Мой счет']]
     return telegram.ReplyKeyboardMarkup(
@@ -126,17 +116,17 @@ def main() -> None:
     env = Env()
     env.read_env()
 
-    updater = UpdaterRedisInit(
-        token=env('TOKEN_TG'),
-        host=env('REDIS_HOST'),
-        port=env('REDIS_PORT'),
-        password=env('PASSWORD_DB'),
-    )
+    updater = Updater(token=env('TOKEN_TG'))
     updater.logger.addHandler(BotLogsHandler(
         token=env('TOKEN_TG_LOG'),
         chat_id=env('CHAT_ID_LOG')
     ))
     dispatcher = updater.dispatcher
+    dispatcher.redis = redis.Redis(
+        host=env('REDIS_HOST'),
+        port=env('REDIS_PORT'),
+        password=env('PASSWORD_DB'),
+    )
 
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
     conv_handler = ConversationHandler(
