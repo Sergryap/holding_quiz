@@ -1,11 +1,8 @@
-from typing import List
-
 import vk_api as vk
 import random
 import logging
 import json
 import redis
-import os
 
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.longpoll import VkLongPoll, VkEventType
@@ -29,7 +26,7 @@ def get_markup():
     return keyboard.get_keyboard()
 
 
-def global_handler(event, vk_api: VkApiMethod, redis_connect: redis.Redis, quiz: List[dict]) -> None:
+def global_handler(event, vk_api: VkApiMethod, redis_connect: redis.Redis, quiz: list) -> None:
     user_id = event.user_id
     message_user = event.text
     messages = []
@@ -126,13 +123,11 @@ def main() -> None:
         token=env('TOKEN_TG_LOG'),
         chat_id=env('CHAT_ID_LOG')
     ))
-
     redis_connect = redis.Redis(
         host=env('REDIS_HOST'),
         port=env('REDIS_PORT'),
         password=env('PASSWORD_DB'),
     )
-
     quiz = get_random_quiz()
 
     while True:

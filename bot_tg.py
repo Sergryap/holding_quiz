@@ -1,8 +1,6 @@
 import json
 import logging
-import os.path
 import random
-
 import telegram
 import redis
 
@@ -157,8 +155,8 @@ def main() -> None:
         password=env('PASSWORD_DB'),
     )
     dispatcher.quiz = get_random_quiz()
-
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
+
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.regex('Новый вопрос'), handle_new_question_request)],
         states={

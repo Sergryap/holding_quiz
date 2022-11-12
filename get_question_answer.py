@@ -5,13 +5,15 @@ import re
 import random
 
 
-def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
+def create_quiz_from_files_to_json(path, new_path, count_questions_in_file, max_count_files=None):
     """
-    Создание файлов json из текстовых фалов в директории path и запись их в дирректрию new_path
+    Создание файлов json из текстовых фалов в директории path и запись их в директорию new_path
     count_questions_in_file - количество вопросов в одном файле json
+    max_count_files - максимальное количество создаваемых файлов
     """
     path_save = os.path.join(os.getcwd(), new_path)
-    os.makedirs(path_save)
+    if not os.path.exists(path_save):
+        os.makedirs(path_save)
     files_quiz = os.listdir(path)
     next_answer = False
     pattern = re.compile(r'^(Вопрос|Ответ)\s*(\d*):?\n+([\s\S]+)')
@@ -41,6 +43,8 @@ def create_quiz_from_files_to_json(path, new_path, count_questions_in_file):
                         number_file = int(number_question / count_questions_in_file)
                         save_data_to_json(quiz, path_save, number_file, 'quiz-questions.json')
                         quiz = []
+                        if max_count_files and max_count_files == number_file:
+                            return
     # дописываем остаток вопросов:
     if quiz:
         number_file += 1
@@ -59,6 +63,7 @@ def compare_strings(seq1, seq2):
 
 
 def get_random_quiz(quiz_dir_name='quiz-questions-json'):
+    """Загрузка словаря с вопросами из случайного файла"""
     quiz_file_name = random.choice(os.listdir(quiz_dir_name))
     path_quiz_file = os.path.join(os.getcwd(), quiz_dir_name, quiz_file_name)
     with open(path_quiz_file, 'r') as file:
@@ -67,4 +72,9 @@ def get_random_quiz(quiz_dir_name='quiz-questions-json'):
 
 
 if __name__ == '__main__':
-    create_quiz_from_files_to_json('quiz-questions-original', 'quiz-questions-json', 1000)
+    create_quiz_from_files_to_json(
+        path='quiz-questions-original',
+        new_path='quiz-questions-json',
+        count_questions_in_file=1000,
+        max_count_files=5
+    )
