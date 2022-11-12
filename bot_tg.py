@@ -10,8 +10,7 @@ from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
 from environs import Env
 
-from general_func import compare_strings, get_redis_user_data
-from get_question_answer import load_quiz
+from get_question_answer import compare_strings, get_random_quiz
 from logger import BotLogsHandler
 
 logger = logging.getLogger('telegram_logging')
@@ -39,7 +38,15 @@ def start(update: Update, context: CallbackContext):
 def handle_new_question_request(update: Update, context: CallbackContext):
     redis_connect = context.dispatcher.redis
     user_id = update.effective_user.id
-    answer, current_number_question, all_numbers = get_redis_user_data(user_id, redis_connect)[:-1]
+    redis_user = json.loads(redis_connect.get(user_id))
+
+    if redis_user:
+        current_number_question = redis_user.get('number_question', 0)
+        all_numbers = redis_user.get('all_numbers', [current_number_question])
+    else:
+        current_number_question = 0
+        all_numbers = [0]
+
     number_question = current_number_question
 
     # получаем только не повторяющиеся вопросы для пользователя:
@@ -62,14 +69,19 @@ def handle_new_question_request(update: Update, context: CallbackContext):
         text=question,
         reply_markup=get_markup()
     )
+
     return ATTEMPT
 
 
 def handle_solution_attempt(update: Update, context: CallbackContext):
     redis_connect = context.dispatcher.redis
     user_id = update.effective_user.id
-    answer_correct, number_question_exist, all_numbers = get_redis_user_data(user_id, redis_connect)[:-1]
+    redis_user = json.loads(redis_connect.get(user_id))
+    answer_correct = redis_user.get('answer')
+    number_question_exist = redis_user.get('number_question')
+    all_numbers = redis_user.get('all_numbers')
     similar_answer = compare_strings(answer_correct, update.message.text)
+
     if similar_answer:
         msg = 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
         redis_connect.set(
@@ -88,13 +100,17 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
         text=msg,
         reply_markup=get_markup()
     )
+
     return next_state
 
 
 def show_correct_answer_and_next_question(update: Update, context: CallbackContext):
     redis_connect = context.dispatcher.redis
     user_id = update.effective_user.id
-    answer_correct, number_question_exist, all_numbers = get_redis_user_data(user_id, redis_connect)[:-1]
+    redis_user = json.loads(redis_connect.get(user_id))
+    answer_correct = redis_user.get('answer')
+    number_question_exist = redis_user.get('number_question')
+    all_numbers = redis_user.get('all_numbers')
     update.message.reply_text(
         text=f'Правильный ответ:\n{answer_correct}',
         reply_markup=get_markup()
@@ -120,6 +136,7 @@ def show_correct_answer_and_next_question(update: Update, context: CallbackConte
         text=f'Следующий вопрос:\n\n{next_question}',
         reply_markup=get_markup()
     )
+
     return ATTEMPT
 
 
@@ -127,10 +144,6 @@ def main() -> None:
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     env = Env()
     env.read_env()
-
-    file_name = '1_quiz-questions.json'
-    path_name = 'quiz-questions-json'
-    path_file_name = os.path.join(os.getcwd(), path_name, file_name)
 
     updater = Updater(token=env('TOKEN_TG'))
     updater.logger.addHandler(BotLogsHandler(
@@ -143,7 +156,7 @@ def main() -> None:
         port=env('REDIS_PORT'),
         password=env('PASSWORD_DB'),
     )
-    dispatcher.quiz = load_quiz(path_file_name)
+    dispatcher.quiz = get_random_quiz()
 
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
     conv_handler = ConversationHandler(

@@ -1,3 +1,4 @@
+import difflib
 import json
 import os
 import re
@@ -53,8 +54,14 @@ def save_data_to_json(data, path_save, number_file, name_file):
         json.dump(data, file, ensure_ascii=False, indent=5)
 
 
-def load_quiz(path):
-    with open(path, 'r') as file:
+def compare_strings(seq1, seq2):
+    return difflib.SequenceMatcher(a=seq1.lower(), b=seq2.lower()).ratio() > 0.85
+
+
+def get_random_quiz(quiz_dir_name='quiz-questions-json'):
+    quiz_file_name = random.choice(os.listdir(quiz_dir_name))
+    path_quiz_file = os.path.join(os.getcwd(), quiz_dir_name, quiz_file_name)
+    with open(path_quiz_file, 'r') as file:
         quiz = json.load(file)
     return quiz
 

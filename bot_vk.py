@@ -12,8 +12,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.vk_api import VkApiMethod
 from environs import Env
 
-from general_func import compare_strings, get_redis_user_data
-from get_question_answer import load_quiz
+from get_question_answer import compare_strings, get_random_quiz
 from logger import BotLogsHandler
 from time import sleep
 
@@ -33,13 +32,20 @@ def get_markup():
 def global_handler(event, vk_api: VkApiMethod, redis_connect: redis.Redis, quiz: List[dict]) -> None:
     user_id = event.user_id
     message_user = event.text
-    (answer_correct_redis,
-     current_number_question,
-     all_numbers_question,
-     waiting_answer) = get_redis_user_data(user_id, redis_connect)
-    number_question = current_number_question
     messages = []
+    redis_user = json.loads(redis_connect.get(user_id))
 
+    if redis_user:
+        answer_correct_redis = redis_user.get('answer')
+        current_number_question = redis_user.get('number_question', 0)
+        all_numbers_question = redis_user.get('all_numbers', [current_number_question])
+        waiting_answer = redis_user.get('waiting_answer')
+    else:
+        current_number_question = 0
+        all_numbers_question = [0]
+        waiting_answer = False
+
+    number_question = current_number_question
     if message_user == 'Новый вопрос' and not waiting_answer:
         while number_question in all_numbers_question or number_question == current_number_question:
             question_random = random.choice(quiz)
@@ -47,7 +53,6 @@ def global_handler(event, vk_api: VkApiMethod, redis_connect: redis.Redis, quiz:
             answer_correct = question_random['answer']
             number_question = question_random['number']
         all_numbers_question.append(number_question)
-
         redis_connect.set(
             user_id,
             json.dumps(
@@ -127,10 +132,8 @@ def main() -> None:
         port=env('REDIS_PORT'),
         password=env('PASSWORD_DB'),
     )
-    file_name = '1_quiz-questions.json'
-    path_name = 'quiz-questions-json'
-    path_file_name = os.path.join(os.getcwd(), path_name, file_name)
-    quiz = load_quiz(path_file_name)
+
+    quiz = get_random_quiz()
 
     while True:
 
