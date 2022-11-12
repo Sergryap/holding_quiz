@@ -53,15 +53,11 @@ def save_data_to_json(data, path_save, number_file, name_file):
         json.dump(data, file, ensure_ascii=False, indent=5)
 
 
-def get_random_question(path_name='quiz-questions-json'):
-    files_quiz = os.listdir(path_name)
-    file_random = random.choice(files_quiz)
-    file_random_path = os.path.join(os.getcwd(), path_name, file_random)
-    with open(file_random_path, 'r') as file:
-        questions = json.load(file)
-    question_random = random.choice(questions)
-    return question_random['question'], question_random['answer'], question_random['number']
+def load_quiz(path):
+    with open(path, 'r') as file:
+        quiz = json.load(file)
+    return quiz
 
 
 if __name__ == '__main__':
-    create_quiz_from_files_to_json('quiz-questions-original', 'quiz-questions-json', 50)
+    create_quiz_from_files_to_json('quiz-questions-original', 'quiz-questions-json', 1000)

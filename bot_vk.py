@@ -1,8 +1,11 @@
+from typing import List
+
 import vk_api as vk
 import random
 import logging
 import json
 import redis
+import os
 
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.longpoll import VkLongPoll, VkEventType
@@ -10,7 +13,7 @@ from vk_api.vk_api import VkApiMethod
 from environs import Env
 
 from general_func import compare_strings, get_redis_user_data
-from get_question_answer import get_random_question
+from get_question_answer import load_quiz
 from logger import BotLogsHandler
 from time import sleep
 
@@ -27,7 +30,7 @@ def get_markup():
     return keyboard.get_keyboard()
 
 
-def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Redis) -> None:
+def global_handler(event, vk_api: VkApiMethod, redis_connect: redis.Redis, quiz: List[dict]) -> None:
     user_id = event.user_id
     message_user = event.text
     (answer_correct_redis,
@@ -39,8 +42,12 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
 
     if message_user == 'Новый вопрос' and not waiting_answer:
         while number_question in all_numbers_question or number_question == current_number_question:
-            question, answer_correct, number_question = get_random_question()
+            question_random = random.choice(quiz)
+            question = question_random['question']
+            answer_correct = question_random['answer']
+            number_question = question_random['number']
         all_numbers_question.append(number_question)
+
         redis_connect.set(
             user_id,
             json.dumps(
@@ -57,7 +64,10 @@ def global_handler(event, vk_api: VkApiMethod, env: Env, redis_connect: redis.Re
     elif waiting_answer and message_user == 'Сдаться':
         messages.append(f'Правильный ответ:\n{answer_correct_redis}')
         while number_question in all_numbers_question or number_question == current_number_question:
-            next_question, next_answer_correct, number_question = get_random_question()
+            question_random = random.choice(quiz)
+            next_question = question_random['question']
+            next_answer_correct = question_random['answer']
+            number_question = question_random['number']
         all_numbers_question.append(number_question)
         redis_connect.set(
             user_id,
@@ -117,6 +127,11 @@ def main() -> None:
         port=env('REDIS_PORT'),
         password=env('PASSWORD_DB'),
     )
+    file_name = '1_quiz-questions.json'
+    path_name = 'quiz-questions-json'
+    path_file_name = os.path.join(os.getcwd(), path_name, file_name)
+    quiz = load_quiz(path_file_name)
+
     while True:
 
         try:
@@ -126,7 +141,7 @@ def main() -> None:
             logger.warning('Бот ВК "holding_quize" запущен')
             for event in longpoll.listen():
                 if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-                    global_handler(event, vk_api, env, redis_connect)
+                    global_handler(event, vk_api, redis_connect, quiz)
 
         except ConnectionError as err:
             logger.warning(f'Соединение было прервано: {err}', stack_info=True)

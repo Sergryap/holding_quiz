@@ -1,5 +1,8 @@
 import json
 import logging
+import os.path
+import random
+
 import telegram
 import redis
 
@@ -8,11 +11,10 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 from environs import Env
 
 from general_func import compare_strings, get_redis_user_data
-from get_question_answer import get_random_question
+from get_question_answer import load_quiz
 from logger import BotLogsHandler
 
 logger = logging.getLogger('telegram_logging')
-
 
 ATTEMPT = 1
 
@@ -39,9 +41,14 @@ def handle_new_question_request(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     answer, current_number_question, all_numbers = get_redis_user_data(user_id, redis_connect)[:-1]
     number_question = current_number_question
+
     # получаем только не повторяющиеся вопросы для пользователя:
     while number_question in all_numbers or number_question == current_number_question:
-        question, answer_correct, number_question = get_random_question()
+        question_random = random.choice(context.dispatcher.quiz)
+        question = question_random['question']
+        answer_correct = question_random['answer']
+        number_question = question_random['number']
+
     all_numbers.append(number_question)
     redis_connect.set(
         user_id,
@@ -93,8 +100,13 @@ def show_correct_answer_and_next_question(update: Update, context: CallbackConte
         reply_markup=get_markup()
     )
     number_question = number_question_exist
+
     while number_question in all_numbers or number_question == number_question_exist:
-        next_question, next_answer_correct, number_question = get_random_question()
+        question_random = random.choice(context.dispatcher.quiz)
+        next_question = question_random['question']
+        next_answer_correct = question_random['answer']
+        number_question = question_random['number']
+
     all_numbers.append(number_question)
     redis_connect.set(
         user_id,
@@ -116,6 +128,10 @@ def main() -> None:
     env = Env()
     env.read_env()
 
+    file_name = '1_quiz-questions.json'
+    path_name = 'quiz-questions-json'
+    path_file_name = os.path.join(os.getcwd(), path_name, file_name)
+
     updater = Updater(token=env('TOKEN_TG'))
     updater.logger.addHandler(BotLogsHandler(
         token=env('TOKEN_TG_LOG'),
@@ -127,6 +143,7 @@ def main() -> None:
         port=env('REDIS_PORT'),
         password=env('PASSWORD_DB'),
     )
+    dispatcher.quiz = load_quiz(path_file_name)
 
     updater.logger.warning('Бот Telegram "holding_quize" запущен')
     conv_handler = ConversationHandler(
